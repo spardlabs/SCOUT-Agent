@@ -14,7 +14,7 @@ class JobResponse(BaseModel):
     edited_file_url: Optional[str] = None
     transcript_url: Optional[str] = None
     duration_seconds: Optional[float] = None
-    metadata: Optional[dict[str, Any]] = None
+    file_metadata: Optional[dict[str, Any]] = None
     error_message: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

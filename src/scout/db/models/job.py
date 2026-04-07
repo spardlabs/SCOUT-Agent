@@ -45,7 +45,9 @@ class Job(UUIDMixin, TimestampMixin, Base):
     # Metadata
     source_filename: Mapped[str] = mapped_column(String(500), nullable=False)
     duration_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    file_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
 
     # Error tracking
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

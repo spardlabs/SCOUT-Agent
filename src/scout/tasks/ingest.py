@@ -145,7 +145,7 @@ async def _ingest_file(db, user_id: str, local_path: str, filename: str):
 
         info = MediaService.get_media_info(local_path)
         job.duration_seconds = float(info.get("format", {}).get("duration", 0))
-        job.metadata = info
+        job.file_metadata = info
 
         await db.flush()
 
