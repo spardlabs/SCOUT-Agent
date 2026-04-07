@@ -10,6 +10,7 @@ import {
   LuShare2,
   LuChartBarIncreasing,
   LuSettings,
+  LuUpload,
 } from "react-icons/lu";
 import { useAuth } from "@/providers/AuthProvider";
 import type { IconType } from "react-icons";
@@ -21,6 +22,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { label: "Upload", href: "/upload", icon: LuUpload },
   { label: "Dashboard", href: "/dashboard", icon: LuLayoutDashboard },
   { label: "Jobs", href: "/jobs", icon: LuBriefcase },
   { label: "Clips", href: "/clips", icon: LuFilm },
