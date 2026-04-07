@@ -89,8 +89,6 @@ export default function JobDetailPage({
           </Card.Header>
           <Card.Body>
             <Box
-              as="textarea"
-              readOnly
               w="100%"
               h="300px"
               p={3}
@@ -98,10 +96,12 @@ export default function JobDetailPage({
               borderWidth="1px"
               borderColor="gray.200"
               fontSize="sm"
-              resize="vertical"
+              overflowY="auto"
               bg="gray.50"
-              value={job.transcript_url ? "Transcript loading..." : "No transcript available."}
-            />
+              whiteSpace="pre-wrap"
+            >
+              {job.transcript_url ? "Transcript loading..." : "No transcript available."}
+            </Box>
           </Card.Body>
         </Card.Root>
       </SimpleGrid>
