@@ -25,7 +25,7 @@ const navItems: NavItem[] = [
   { label: "Jobs", href: "/jobs", icon: LuBriefcase },
   { label: "Clips", href: "/clips", icon: LuFilm },
   { label: "Social", href: "/social", icon: LuShare2 },
-  { label: "Analytics", href: "/analytics", icon: LuBarChart3 },
+  { label: "Analytics", href: "/analytics", icon: LuChartBarIncreasing },
   { label: "Settings", href: "/settings", icon: LuSettings },
 ];
 
