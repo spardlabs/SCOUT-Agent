@@ -6,7 +6,7 @@ export const uploadApi = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const res = await fetch("/api/upload", {
+    const res = await fetch("http://localhost:8000/api/upload", {
       method: "POST",
       headers: {
         ...(apiKey ? { "X-API-Key": apiKey } : {}),
