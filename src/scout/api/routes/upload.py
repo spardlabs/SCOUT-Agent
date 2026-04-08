@@ -42,6 +42,8 @@ async def upload_episode(
     db.add(job)
     await db.flush()
     await db.refresh(job)
+    # Commit immediately so the background pipeline can see this job
+    await db.commit()
 
     job_id = str(job.id)
     user_id = str(user.id)

@@ -197,6 +197,9 @@ async def process_episode(job_id: str, user_id: str, file_path: str):
     """
     logger.info("pipeline_started", job_id=job_id)
 
+    # Wait for the upload transaction to be fully committed
+    await asyncio.sleep(2)
+
     try:
         # ── Stage 1: Ingest ──────────────────────────────────────────
         await _update_job_status(job_id, JobStatus.INGESTING, started_at=datetime.utcnow())
