@@ -30,7 +30,7 @@ function ClipPreview({
   onClose: () => void;
 }) {
   const apiKey = typeof window !== "undefined" ? localStorage.getItem("scout_api_key") : "";
-  const videoUrl = `${BACKEND_URL}/api/media/clips/${clip.id}/video`;
+  const videoUrl = `${BACKEND_URL}/api/media/clips/${clip.id}/video?key=${encodeURIComponent(apiKey || "")}`;
 
   return (
     <Box

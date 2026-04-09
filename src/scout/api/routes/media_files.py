@@ -1,29 +1,57 @@
 import os
 import tempfile
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from scout.api.deps import get_current_user, get_db
+from scout.db.session import get_db
 from scout.db.models.clip import Clip
 from scout.db.models.job import Job
 from scout.db.models.user import User
+from scout.core.auth import hash_api_key
 
 router = APIRouter()
 
-TEMP_DIR = os.path.join(tempfile.gettempdir(), "scout-uploads")
+
+async def _get_user_by_key(api_key: str, db: AsyncSession) -> User | None:
+    """Authenticate user by API key (from header or query param)."""
+    key_hash = hash_api_key(api_key)
+    result = await db.execute(select(User).where(User.api_key_hash == key_hash))
+    return result.scalar_one_or_none()
+
+
+async def _auth_from_header_or_query(
+    api_key: Optional[str] = Query(None, alias="key"),
+    db: AsyncSession = Depends(get_db),
+) -> tuple[User, AsyncSession]:
+    """Accept API key from X-API-Key header OR ?key= query param (for video tags)."""
+    from fastapi import Request
+    # Try query param first
+    if api_key:
+        user = await _get_user_by_key(api_key, db)
+        if user:
+            return user, db
+    raise HTTPException(status_code=401, detail="Invalid API key")
 
 
 @router.get("/jobs/{job_id}/video")
 async def stream_job_video(
     job_id: str,
     variant: str = "edited",
-    user: User = Depends(get_current_user),
+    key: str = Query(""),
     db: AsyncSession = Depends(get_db),
 ):
-    """Stream a job's video file (raw or edited)."""
+    """Stream a job's video file. Pass API key as ?key= query param."""
+    if not key:
+        raise HTTPException(status_code=401, detail="API key required as ?key= parameter")
+
+    user = await _get_user_by_key(key, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
     result = await db.execute(
         select(Job).where(Job.id == job_id, Job.user_id == user.id)
     )
@@ -42,10 +70,17 @@ async def stream_job_video(
 async def stream_clip_video(
     clip_id: str,
     platform: str = "",
-    user: User = Depends(get_current_user),
+    key: str = Query(""),
     db: AsyncSession = Depends(get_db),
 ):
-    """Stream a clip's video file, optionally a platform-specific variant."""
+    """Stream a clip's video file. Pass API key as ?key= query param."""
+    if not key:
+        raise HTTPException(status_code=401, detail="API key required as ?key= parameter")
+
+    user = await _get_user_by_key(key, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
     result = await db.execute(
         select(Clip).where(Clip.id == clip_id, Clip.user_id == user.id)
     )
@@ -53,7 +88,6 @@ async def stream_clip_video(
     if not clip:
         raise HTTPException(status_code=404, detail="Clip not found")
 
-    # Get platform variant or master clip
     file_path = clip.clip_file_url
     if platform and clip.platform_variants:
         file_path = clip.platform_variants.get(platform, file_path)
@@ -67,10 +101,17 @@ async def stream_clip_video(
 @router.get("/clips/{clip_id}/thumbnail")
 async def get_clip_thumbnail(
     clip_id: str,
-    user: User = Depends(get_current_user),
+    key: str = Query(""),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a clip's thumbnail image."""
+    if not key:
+        raise HTTPException(status_code=401, detail="API key required")
+
+    user = await _get_user_by_key(key, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
     result = await db.execute(
         select(Clip).where(Clip.id == clip_id, Clip.user_id == user.id)
     )

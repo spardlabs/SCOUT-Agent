@@ -74,7 +74,7 @@ export default function JobDetailPage({
           </Card.Header>
           <Card.Body>
             {job.edited_file_url ? (
-              <VideoPlayer src={`http://localhost:8000/api/media/jobs/${job.id}/video`} />
+              <VideoPlayer src={`http://localhost:8000/api/media/jobs/${job.id}/video?key=${encodeURIComponent(typeof window !== "undefined" ? localStorage.getItem("scout_api_key") || "" : "")}`} />
             ) : (
               <Text color="gray.500" fontSize="sm">
                 No edited file available yet.
