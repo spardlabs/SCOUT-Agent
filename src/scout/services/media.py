@@ -264,11 +264,14 @@ class MediaService:
     ) -> str:
         """Burn SRT captions into a video."""
         style = f"FontSize={font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2"
+        # Windows path escaping for FFmpeg subtitles filter:
+        # backslashes -> forward slashes, colons -> escaped colons
+        escaped_srt = srt_path.replace("\\", "/").replace(":", "\\:")
         try:
             subprocess.run(
                 [
                     "ffmpeg", "-i", file_path,
-                    "-vf", f"subtitles={srt_path}:force_style='{style}'",
+                    "-vf", f"subtitles={escaped_srt}:force_style='{style}'",
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
                     "-c:a", "copy",
                     "-y", output_path,
