@@ -31,13 +31,14 @@ def create_app() -> FastAPI:
     )
 
     # Include routers
-    from scout.api.routes import users, profiles, jobs, clips, webhooks, social, analytics, upload
+    from scout.api.routes import users, profiles, jobs, clips, webhooks, social, analytics, upload, media_files
 
     app.include_router(users.router, prefix="/api/users", tags=["users"])
     app.include_router(profiles.router, prefix="/api/profiles", tags=["profiles"])
     app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])
     app.include_router(upload.router, prefix="/api/upload", tags=["upload"])
     app.include_router(clips.router, prefix="/api/clips", tags=["clips"])
+    app.include_router(media_files.router, prefix="/api/media", tags=["media"])
     app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
     app.include_router(social.router, prefix="/api/social", tags=["social"])
     app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
