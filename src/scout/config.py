@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str = ""
 
+    # Runway AI (intro/outro generation)
+    runway_api_key: str = ""
+
+    # Color grading
+    color_grading_lut_dir: str = ""
+
     # Dropbox
     dropbox_app_key: str = ""
     dropbox_app_secret: str = ""

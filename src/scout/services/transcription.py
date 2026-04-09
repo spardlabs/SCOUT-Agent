@@ -87,6 +87,29 @@ class TranscriptionService:
         return output_path
 
     @staticmethod
+    def transcript_to_srt_for_clip(
+        transcript: dict,
+        output_path: str,
+        clip_start: float,
+        clip_end: float,
+    ) -> str:
+        """Generate SRT with timestamps adjusted relative to clip start."""
+        with open(output_path, "w") as f:
+            counter = 1
+            for segment in transcript.get("segments", []):
+                if segment["end"] <= clip_start or segment["start"] >= clip_end:
+                    continue
+                seg_start = max(segment["start"], clip_start) - clip_start
+                seg_end = min(segment["end"], clip_end) - clip_start
+                start_str = TranscriptionService._format_srt_time(seg_start)
+                end_str = TranscriptionService._format_srt_time(seg_end)
+                f.write(f"{counter}\n")
+                f.write(f"{start_str} --> {end_str}\n")
+                f.write(f"{segment['text']}\n\n")
+                counter += 1
+        return output_path
+
+    @staticmethod
     def transcript_to_text(transcript: dict) -> str:
         """Extract plain text from transcript."""
         return " ".join(seg["text"] for seg in transcript["segments"])

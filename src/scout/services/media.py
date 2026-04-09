@@ -316,3 +316,155 @@ class MediaService:
             return output_path
         except subprocess.CalledProcessError as e:
             raise MediaProcessingError(f"Logo overlay failed: {e.stderr}") from e
+
+    @staticmethod
+    def enhance_audio(
+        file_path: str,
+        output_path: str,
+        noise_reduction: bool = True,
+        noise_floor_db: float = -40.0,
+        eq_profile: str = "podcast",
+        compress: bool = True,
+        de_ess: bool = True,
+    ) -> str:
+        """Professional audio enhancement: noise reduction, EQ, compression, de-essing."""
+        filters = []
+
+        # Noise reduction (FFT-based denoiser)
+        if noise_reduction:
+            filters.append(f"afftdn=nf={noise_floor_db}:tn=1")
+
+        # High-pass filter (remove rumble)
+        filters.append("highpass=f=80")
+
+        # EQ profiles
+        eq_profiles = {
+            "podcast": (
+                "equalizer=f=120:t=q:w=1.5:g=-3,"
+                "equalizer=f=3000:t=q:w=2:g=3,"
+                "equalizer=f=8000:t=q:w=1.5:g=2"
+            ),
+            "voice": (
+                "equalizer=f=200:t=q:w=1:g=-2,"
+                "equalizer=f=2500:t=q:w=2:g=4,"
+                "equalizer=f=6000:t=q:w=1.5:g=3"
+            ),
+        }
+        if eq_profile in eq_profiles:
+            filters.append(eq_profiles[eq_profile])
+
+        # De-esser (sibilance reduction at 6-8kHz)
+        if de_ess:
+            filters.append("equalizer=f=6500:t=q:w=2:g=-3")
+            filters.append("equalizer=f=8000:t=q:w=2:g=-2")
+
+        # Dynamic range compression
+        if compress:
+            filters.append(
+                "acompressor=threshold=-24dB:ratio=3:attack=5:release=100:makeup=2dB:knee=6dB"
+            )
+
+        # Safety limiter
+        filters.append("alimiter=limit=0.95:level=1")
+
+        filter_chain = ",".join(filters)
+
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg", "-i", file_path,
+                    "-af", filter_chain,
+                    "-c:v", "copy",
+                    "-y", output_path,
+                ],
+                check=True,
+                capture_output=True,
+            )
+            logger.info("audio_enhanced", eq=eq_profile, output=output_path)
+            return output_path
+        except subprocess.CalledProcessError as e:
+            raise MediaProcessingError(f"Audio enhancement failed: {e.stderr}") from e
+
+    @staticmethod
+    def color_grade(
+        file_path: str,
+        output_path: str,
+        auto_correct: bool = True,
+        lut_path: str | None = None,
+        brightness: float = 0.0,
+        contrast: float = 1.0,
+        saturation: float = 1.0,
+    ) -> str:
+        """Apply color grading: auto correction, LUT, brightness/contrast/saturation."""
+        filters = []
+
+        # Auto color correction (clip darkest/brightest 4% per channel)
+        if auto_correct:
+            filters.append(
+                "colorlevels=rimin=0.039:gimin=0.039:bimin=0.039:"
+                "rimax=0.96:gimax=0.96:bimax=0.96"
+            )
+
+        # LUT application
+        if lut_path and os.path.exists(lut_path):
+            # Escape path for FFmpeg filter (Windows backslashes)
+            escaped = lut_path.replace("\\", "/").replace(":", "\\:")
+            filters.append(f"lut3d={escaped}")
+
+        # Brightness, contrast, saturation
+        if brightness != 0.0 or contrast != 1.0 or saturation != 1.0:
+            filters.append(f"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}")
+
+        if not filters:
+            # Nothing to do, just copy
+            subprocess.run(["ffmpeg", "-i", file_path, "-c", "copy", "-y", output_path],
+                           check=True, capture_output=True)
+            return output_path
+
+        filter_chain = ",".join(filters)
+
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg", "-i", file_path,
+                    "-vf", filter_chain,
+                    "-c:a", "copy",
+                    "-y", output_path,
+                ],
+                check=True,
+                capture_output=True,
+            )
+            logger.info("color_graded", auto=auto_correct, lut=bool(lut_path), output=output_path)
+            return output_path
+        except subprocess.CalledProcessError as e:
+            raise MediaProcessingError(f"Color grading failed: {e.stderr}") from e
+
+    @staticmethod
+    def generate_thumbnail(
+        file_path: str,
+        output_path: str,
+        timestamp_seconds: float = 0.0,
+        width: int = 1280,
+        height: int = 720,
+    ) -> str:
+        """Extract a frame from video as a thumbnail image."""
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-ss", str(timestamp_seconds),
+                    "-i", file_path,
+                    "-vframes", "1",
+                    "-vf", (
+                        f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
+                    ),
+                    "-y", output_path,
+                ],
+                check=True,
+                capture_output=True,
+            )
+            logger.info("thumbnail_generated", output=output_path)
+            return output_path
+        except subprocess.CalledProcessError as e:
+            raise MediaProcessingError(f"Thumbnail generation failed: {e.stderr}") from e
