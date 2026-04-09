@@ -263,19 +263,23 @@ class MediaService:
         font_color: str = "white",
     ) -> str:
         """Burn SRT captions into a video."""
+        import shutil
+        import tempfile
+
         style = f"FontSize={font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2"
-        # Windows: FFmpeg subtitles filter needs special path handling.
-        # Use the subtitles filter with 'filename' option and proper escaping.
-        # Replace backslashes with forward slashes, then escape colons and single quotes.
-        escaped_srt = srt_path.replace("\\", "/")
-        # On Windows, escape the colon ONLY after the drive letter (C: -> C\\:)
-        if len(escaped_srt) >= 2 and escaped_srt[1] == ":":
-            escaped_srt = escaped_srt[0] + "\\\\:" + escaped_srt[2:]
+
+        # Windows workaround: FFmpeg subtitles filter can't handle long Windows paths.
+        # Copy SRT to a short temp path that FFmpeg can parse.
+        temp_srt = os.path.join(tempfile.gettempdir(), "scout_captions.srt")
+        shutil.copy2(srt_path, temp_srt)
+        # Use forward slashes for FFmpeg
+        ffmpeg_srt = temp_srt.replace("\\", "/")
+
         try:
             subprocess.run(
                 [
                     "ffmpeg", "-i", file_path,
-                    "-vf", f"subtitles='{escaped_srt}':force_style='{style}'",
+                    "-vf", f"subtitles='{ffmpeg_srt}':force_style='{style}'",
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
                     "-c:a", "copy",
                     "-y", output_path,
