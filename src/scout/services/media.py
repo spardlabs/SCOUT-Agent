@@ -122,6 +122,7 @@ class MediaService:
                     "ffmpeg", "-i", file_path,
                     "-filter_complex", filter_complex,
                     "-map", "[outv]", "-map", "[outa]",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
                     "-y", output_path,
                 ],
                 check=True,
@@ -154,6 +155,7 @@ class MediaService:
                 [
                     "ffmpeg", "-i", file_path,
                     "-af", f"loudnorm=I={target_lufs}:TP=-1.5:LRA=11",
+                    "-c:v", "copy",
                     "-y", output_path,
                 ],
                 check=True,
@@ -240,6 +242,8 @@ class MediaService:
                         f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
                         f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
                     ),
+                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+                    "-c:a", "copy",
                     "-y", output_path,
                 ],
                 check=True,
@@ -265,6 +269,8 @@ class MediaService:
                 [
                     "ffmpeg", "-i", file_path,
                     "-vf", f"subtitles={srt_path}:force_style='{style}'",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+                    "-c:a", "copy",
                     "-y", output_path,
                 ],
                 check=True,
@@ -428,6 +434,7 @@ class MediaService:
                 [
                     "ffmpeg", "-i", file_path,
                     "-vf", filter_chain,
+                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
                     "-c:a", "copy",
                     "-y", output_path,
                 ],
