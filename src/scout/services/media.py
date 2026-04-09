@@ -262,24 +262,60 @@ class MediaService:
         font_size: int = 48,
         font_color: str = "white",
     ) -> str:
-        """Burn SRT captions into a video."""
-        import shutil
-        import tempfile
+        """Burn SRT captions into a video using drawtext filter (Windows-safe)."""
+        # Parse the SRT file into text segments
+        captions = []
+        try:
+            with open(srt_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+            if not content:
+                # Empty SRT - just copy the file
+                subprocess.run(["ffmpeg", "-i", file_path, "-c", "copy", "-y", output_path],
+                               check=True, capture_output=True)
+                return output_path
 
-        style = f"FontSize={font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2"
+            blocks = content.split("\n\n")
+            for block in blocks:
+                lines = block.strip().split("\n")
+                if len(lines) >= 3:
+                    # Parse timestamp line: "00:00:01,000 --> 00:00:05,000"
+                    times = lines[1].split(" --> ")
+                    if len(times) == 2:
+                        text = " ".join(lines[2:]).replace("'", "\u2019").replace(":", "\\:")
+                        start = MediaService._srt_to_seconds(times[0].strip())
+                        end = MediaService._srt_to_seconds(times[1].strip())
+                        captions.append((start, end, text))
+        except Exception as e:
+            logger.warning("srt_parse_failed", error=str(e))
+            subprocess.run(["ffmpeg", "-i", file_path, "-c", "copy", "-y", output_path],
+                           check=True, capture_output=True)
+            return output_path
 
-        # Windows workaround: FFmpeg subtitles filter can't handle long Windows paths.
-        # Copy SRT to a short temp path that FFmpeg can parse.
-        temp_srt = os.path.join(tempfile.gettempdir(), "scout_captions.srt")
-        shutil.copy2(srt_path, temp_srt)
-        # Use forward slashes for FFmpeg
-        ffmpeg_srt = temp_srt.replace("\\", "/")
+        if not captions:
+            subprocess.run(["ffmpeg", "-i", file_path, "-c", "copy", "-y", output_path],
+                           check=True, capture_output=True)
+            return output_path
+
+        # Build drawtext filter chain - one drawtext per caption segment
+        drawtext_filters = []
+        for start, end, text in captions:
+            dt = (
+                f"drawtext=text='{text}'"
+                f":fontsize={font_size}"
+                f":fontcolor={font_color}"
+                f":borderw=3:bordercolor=black"
+                f":x=(w-text_w)/2:y=h-th-60"
+                f":enable='between(t,{start:.2f},{end:.2f})'"
+            )
+            drawtext_filters.append(dt)
+
+        filter_chain = ",".join(drawtext_filters)
 
         try:
             subprocess.run(
                 [
                     "ffmpeg", "-i", file_path,
-                    "-vf", f"subtitles='{ffmpeg_srt}':force_style='{style}'",
+                    "-vf", filter_chain,
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
                     "-c:a", "copy",
                     "-y", output_path,
@@ -287,10 +323,16 @@ class MediaService:
                 check=True,
                 capture_output=True,
             )
-            logger.info("captions_burned", output=output_path)
+            logger.info("captions_burned", output=output_path, segments=len(captions))
             return output_path
         except subprocess.CalledProcessError as e:
             raise MediaProcessingError(f"Caption burn failed: {e.stderr}") from e
+
+    @staticmethod
+    def _srt_to_seconds(srt_time: str) -> float:
+        """Convert SRT timestamp (00:01:23,456) to seconds."""
+        parts = srt_time.replace(",", ".").split(":")
+        return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
 
     @staticmethod
     def apply_logo_overlay(

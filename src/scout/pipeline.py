@@ -324,15 +324,24 @@ async def process_episode(job_id: str, user_id: str, file_path: str):
                 # Extract clip
                 raw_clip = os.path.join(clip_dir, "raw.mp4")
                 master_clip = raw_clip
+                platform_variants = {}
+                thumb_path = None
+
                 if has_ffmpeg:
+                    # Step 1: Extract clip
                     try:
                         await asyncio.to_thread(
                             MediaService.extract_clip, current_file, start, end, raw_clip,
                         )
                         master_clip = raw_clip
+                        logger.info("clip_extracted", clip=i)
+                    except Exception as e:
+                        logger.warning("clip_extract_failed", clip=i, error=str(e))
+                        master_clip = current_file
 
-                        # Burn captions if we have a transcript
-                        if transcript:
+                    # Step 2: Burn captions
+                    if transcript:
+                        try:
                             srt_path = os.path.join(clip_dir, "captions.srt")
                             TranscriptionService.transcript_to_srt_for_clip(
                                 transcript, srt_path, start, end,
@@ -342,13 +351,16 @@ async def process_episode(job_id: str, user_id: str, file_path: str):
                                 caption_style = profile.get("caption_style", {})
                                 await asyncio.to_thread(
                                     MediaService.burn_captions,
-                                    raw_clip, srt_path, captioned,
+                                    master_clip, srt_path, captioned,
                                     font_size=caption_style.get("font_size", 48),
                                 )
                                 master_clip = captioned
+                                logger.info("captions_applied", clip=i)
+                        except Exception as e:
+                            logger.warning("caption_burn_failed", clip=i, error=str(e))
 
-                        # Platform variants (9:16 for vertical platforms)
-                        platform_variants = {}
+                    # Step 3: Platform variants (9:16 for vertical)
+                    try:
                         for platform in profile.get("target_platforms", ["tiktok", "instagram", "youtube_shorts"]):
                             if platform in ("tiktok", "instagram", "youtube_shorts"):
                                 variant_path = os.path.join(clip_dir, f"{platform}.mp4")
@@ -359,18 +371,19 @@ async def process_episode(job_id: str, user_id: str, file_path: str):
                                 platform_variants[platform] = variant_path
                             else:
                                 platform_variants[platform] = master_clip
+                        logger.info("variants_created", clip=i, platforms=list(platform_variants.keys()))
+                    except Exception as e:
+                        logger.warning("variant_failed", clip=i, error=str(e))
 
-                        # Thumbnail
+                    # Step 4: Thumbnail
+                    try:
                         thumb_path = os.path.join(clip_dir, "thumbnail.jpg")
                         mid = (end - start) / 2
                         await asyncio.to_thread(
-                            MediaService.generate_thumbnail, raw_clip, thumb_path, mid,
+                            MediaService.generate_thumbnail, master_clip, thumb_path, mid,
                         )
-
                     except Exception as e:
-                        logger.warning("clip_render_failed", clip=i, error=str(e))
-                        master_clip = current_file
-                        platform_variants = {}
+                        logger.warning("thumb_failed", clip=i, error=str(e))
                         thumb_path = None
                 else:
                     master_clip = current_file
