@@ -264,14 +264,18 @@ class MediaService:
     ) -> str:
         """Burn SRT captions into a video."""
         style = f"FontSize={font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2"
-        # Windows path escaping for FFmpeg subtitles filter:
-        # backslashes -> forward slashes, colons -> escaped colons
-        escaped_srt = srt_path.replace("\\", "/").replace(":", "\\:")
+        # Windows: FFmpeg subtitles filter needs special path handling.
+        # Use the subtitles filter with 'filename' option and proper escaping.
+        # Replace backslashes with forward slashes, then escape colons and single quotes.
+        escaped_srt = srt_path.replace("\\", "/")
+        # On Windows, escape the colon ONLY after the drive letter (C: -> C\\:)
+        if len(escaped_srt) >= 2 and escaped_srt[1] == ":":
+            escaped_srt = escaped_srt[0] + "\\\\:" + escaped_srt[2:]
         try:
             subprocess.run(
                 [
                     "ffmpeg", "-i", file_path,
-                    "-vf", f"subtitles={escaped_srt}:force_style='{style}'",
+                    "-vf", f"subtitles='{escaped_srt}':force_style='{style}'",
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
                     "-c:a", "copy",
                     "-y", output_path,
