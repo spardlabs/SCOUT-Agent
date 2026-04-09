@@ -15,6 +15,7 @@ import asyncio
 import json
 import os
 import tempfile
+import uuid as uuid_mod
 from datetime import datetime
 
 import anthropic
@@ -38,7 +39,7 @@ async def _update_job(job_id: str, **kwargs):
     from sqlalchemy import select
 
     async with async_session_factory() as db:
-        result = await db.execute(select(Job).where(Job.id == job_id))
+        result = await db.execute(select(Job).where(Job.id == uuid_mod.UUID(job_id)))
         job = result.scalar_one_or_none()
         if job:
             for key, value in kwargs.items():
@@ -54,7 +55,7 @@ async def _get_profile(user_id: str) -> dict:
     from sqlalchemy import select
 
     async with async_session_factory() as db:
-        result = await db.execute(select(EditingProfile).where(EditingProfile.user_id == user_id))
+        result = await db.execute(select(EditingProfile).where(EditingProfile.user_id == uuid_mod.UUID(user_id)))
         profile = result.scalar_one_or_none()
         if not profile:
             return {}
@@ -370,8 +371,8 @@ async def process_episode(job_id: str, user_id: str, file_path: str):
                     thumb_path = None
 
                 clip = Clip(
-                    job_id=job_id,
-                    user_id=user_id,
+                    job_id=uuid_mod.UUID(job_id),
+                    user_id=uuid_mod.UUID(user_id),
                     title=clip_data.get("title", f"Clip {i + 1}"),
                     description=clip_data.get("description", ""),
                     start_time_seconds=start,

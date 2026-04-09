@@ -68,18 +68,19 @@ async def upload_episode(
 
         logger.info("file_uploaded", job_id=job_id, filename=filename, size_mb=round(file_size / (1024 * 1024), 2))
 
-        # Trigger the processing pipeline in the background
-        from scout.pipeline import process_episode
+        # Commit file metadata before starting background pipeline
+        await db.commit()
+        await db.refresh(job)
 
+        # Trigger the processing pipeline in the background
         background_tasks.add_task(_run_pipeline, job_id, user_id, local_path)
 
     except Exception as e:
         job.status = JobStatus.FAILED
         job.error_message = str(e)
         logger.error("upload_failed", job_id=job_id, error=str(e))
-
-    await db.flush()
-    await db.refresh(job)
+        await db.commit()
+        await db.refresh(job)
 
     return JobResponse.model_validate(job)
 
@@ -88,4 +89,7 @@ async def _run_pipeline(job_id: str, user_id: str, file_path: str):
     """Wrapper to run the async pipeline from a background task."""
     from scout.pipeline import process_episode
 
-    await process_episode(job_id, user_id, file_path)
+    try:
+        await process_episode(job_id, user_id, file_path)
+    except Exception as e:
+        logger.error("background_pipeline_crashed", job_id=job_id, error=str(e))
