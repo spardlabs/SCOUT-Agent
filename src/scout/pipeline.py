@@ -283,7 +283,10 @@ async def process_episode(job_id: str, user_id: str, file_path: str):
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
         clips_data = []
-        if transcript:
+        transcript_seg_count = len(transcript.get("segments", [])) if transcript else 0
+        logger.info("stage_6_starting", job_id=job_id, has_transcript=bool(transcript), segments=transcript_seg_count)
+
+        if transcript and transcript_seg_count > 0:
             clips_data = await _run_clip_analysis(client, transcript, profile)
             logger.info("stage_6_clips_identified", job_id=job_id, count=len(clips_data))
         else:
@@ -298,7 +301,11 @@ async def process_episode(job_id: str, user_id: str, file_path: str):
                 "transcript_text": "",
             }]
 
+        logger.info("stage_6_done", job_id=job_id, total_clips=len(clips_data))
         await _update_job(job_id, status=JobStatus.CLIPPED)
+
+        if not clips_data:
+            logger.warning("no_clips_to_render", job_id=job_id)
 
         # ── Stage 7: Render Clips ────────────────────────────────────
         await _update_job(job_id, status=JobStatus.SCHEDULING)  # reuse for rendering stage
@@ -411,17 +418,36 @@ async def process_episode(job_id: str, user_id: str, file_path: str):
 
 def _transcribe_audio(file_path: str) -> dict | None:
     """Transcribe audio using faster-whisper if available."""
+    import subprocess as sp
+
     try:
         from faster_whisper import WhisperModel
-        model = WhisperModel("base", device="cpu", compute_type="int8")
-        segments, info = model.transcribe(file_path, word_timestamps=True, vad_filter=True)
 
+        # Extract audio to WAV first for better compatibility
+        wav_path = file_path.rsplit(".", 1)[0] + "_audio.wav"
+        try:
+            sp.run(
+                ["ffmpeg", "-i", file_path, "-vn", "-acodec", "pcm_s16le",
+                 "-ar", "16000", "-ac", "1", "-y", wav_path],
+                check=True, capture_output=True,
+            )
+            audio_input = wav_path
+            logger.info("audio_extracted_for_transcription", wav=wav_path)
+        except Exception:
+            audio_input = file_path
+            logger.warning("audio_extraction_failed_using_original")
+
+        logger.info("transcription_starting", file=audio_input)
+        model = WhisperModel("base", device="cpu", compute_type="int8")
+        segments_gen, info = model.transcribe(audio_input, word_timestamps=True)
+
+        # IMPORTANT: segments_gen is a generator - must iterate to get results
         transcript = {
             "language": info.language,
             "duration": info.duration,
             "segments": [],
         }
-        for segment in segments:
+        for segment in segments_gen:
             seg_data = {
                 "id": segment.id,
                 "start": segment.start,
@@ -430,6 +456,13 @@ def _transcribe_audio(file_path: str) -> dict | None:
                 "words": [{"word": w.word, "start": w.start, "end": w.end} for w in (segment.words or [])],
             }
             transcript["segments"].append(seg_data)
+
+        logger.info("transcription_done_segments", count=len(transcript["segments"]))
+
+        # Clean up temp WAV
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
+
         return transcript
     except ImportError:
         logger.warning("faster_whisper_not_installed")
